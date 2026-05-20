@@ -1,0 +1,74 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.env/
+ENV/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs / Editors
+.vscode/
+.idea/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type checking
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# PyCharm
+*.iml
+
+# Mac
+.AppleDouble
+.LSOverride
+
+# FastAPI/Uvicorn
+*.pid
+
+# SQLite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+
+# Node (if fullstack project)
+node_modules/
+
+# Coverage reports
+coverage.xml
+
+# Ruff
+.ruff_cache/
+
+# pyright
+.pyright/
+
+# dotenv
+.python-version
