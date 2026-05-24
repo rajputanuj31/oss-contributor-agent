@@ -91,19 +91,26 @@ async def cached_get(
     Perform an async GET request with cache check and fallback to live call on miss.
     Only caches status 200 responses.
     """
+    request = client.build_request("GET", url, headers=headers, params=params)
     key = make_cache_key(url, params)
     cached = _cache.get(key)
     
     if cached is not None:
         value, status_code, cached_headers = cached
+        # Remove compression/length headers to prevent httpx from attempting decompression
+        cleaned_headers = {
+            k: v for k, v in cached_headers.items()
+            if k.lower() not in ("content-encoding", "transfer-encoding", "content-length")
+        }
         return httpx.Response(
             status_code=status_code,
-            headers=httpx.Headers(cached_headers),
+            headers=httpx.Headers(cleaned_headers),
             content=value.encode("utf-8"),
+            request=request,
         )
     
     # Cache miss: request live content
-    response = await client.get(url, headers=headers, params=params)
+    response = await client.send(request)
     
     if response.status_code == 200:
         _cache.set(

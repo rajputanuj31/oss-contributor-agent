@@ -1,7 +1,7 @@
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI, HTTPException
-from onboard_github import fetch_repo_details, parse_github_repo_url
-from models import RepoOnboardRequest, RepoDetails
+from onboard_github import fetch_repo_details, parse_github_repo_url, fetch_specific_file
+from models import RepoOnboardRequest, RepoDetails, RepoFileRequest, RepoFileResponse
 
 app = FastAPI(title="OSS Onboarding Agent")
 
@@ -22,6 +22,19 @@ async def onboard_fetch(inp: RepoOnboardRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/onboard/file", response_model=RepoFileResponse)
+async def onboard_file(inp: RepoFileRequest):
+    try:
+        repo = parse_github_repo_url(inp.repo_url)
+        content = await fetch_specific_file(repo, inp.filepath)
+        return RepoFileResponse(repo=repo, filepath=inp.filepath, content=content)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
