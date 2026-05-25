@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../utils/api';
 import { MessageSquare, Send, Sparkles, AlertCircle, Copy, Check } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -12,6 +14,7 @@ interface ChatMessage {
 interface ChatWorkspaceProps {
   sessionId: string;
   initialHistory: ChatMessage[];
+  onChatHistoryChange?: (history: ChatMessage[]) => void;
 }
 
 const SAMPLE_PROMPTS = [
@@ -20,38 +23,7 @@ const SAMPLE_PROMPTS = [
   'Explain the overall directory structure.',
 ];
 
-// Parser to split text into paragraph blocks and code blocks
-function parseChatContent(content: string) {
-  if (!content) return [];
 
-  const parts: { type: 'text' | 'code'; value: string; language?: string }[] = [];
-  const regex = /```(\w*)\n([\s\S]*?)```/g;
-  
-  let lastIndex = 0;
-  let match;
-
-  while ((match = regex.exec(content)) !== null) {
-    const textBefore = content.substring(lastIndex, match.index);
-    if (textBefore.trim()) {
-      parts.push({ type: 'text', value: textBefore });
-    }
-
-    parts.push({
-      type: 'code',
-      language: match[1] || 'plaintext',
-      value: match[2],
-    });
-
-    lastIndex = regex.lastIndex;
-  }
-
-  const textAfter = content.substring(lastIndex);
-  if (textAfter.trim()) {
-    parts.push({ type: 'text', value: textAfter });
-  }
-
-  return parts;
-}
 
 function CodeBlock({ code, language }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
@@ -90,7 +62,7 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   );
 }
 
-export default function ChatWorkspace({ sessionId, initialHistory }: ChatWorkspaceProps) {
+export default function ChatWorkspace({ sessionId, initialHistory, onChatHistoryChange }: ChatWorkspaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialHistory);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -114,7 +86,9 @@ export default function ChatWorkspace({ sessionId, initialHistory }: ChatWorkspa
     setError(null);
 
     const userMessage: ChatMessage = { role: 'user', content: textToSend };
-    setMessages((prev) => [...prev, userMessage]);
+    const updatedUserMessages = [...messages, userMessage];
+    setMessages(updatedUserMessages);
+    onChatHistoryChange?.(updatedUserMessages);
     setInput('');
     setLoading(true);
 
@@ -130,6 +104,7 @@ export default function ChatWorkspace({ sessionId, initialHistory }: ChatWorkspa
         content: msg.content,
       }));
       setMessages(formattedHistory);
+      onChatHistoryChange?.(formattedHistory);
     } catch (err: any) {
       setError(err.message || 'Error fetching response from agent.');
     } finally {
@@ -186,18 +161,33 @@ export default function ChatWorkspace({ sessionId, initialHistory }: ChatWorkspa
                   }`}
                 >
                   {!isUser ? (
-                    parseChatContent(msg.content).map((part, pIdx) => {
-                      if (part.type === 'code') {
-                        return <CodeBlock key={pIdx} code={part.value} language={part.language} />;
-                      }
-                      return (
-                        <p key={pIdx} className="whitespace-pre-line last:mb-0 mb-2">
-                          {part.value}
-                        </p>
-                      );
-                    })
+                    <div className="prose prose-invert max-w-none text-xs text-zinc-300 [&>p]:mb-2 [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>h1]:text-sm [&>h1]:font-bold [&>h2]:text-xs [&>h2]:font-bold [&>h3]:text-xs [&>h3]:font-bold [&>h4]:text-xs [&>h4]:font-bold [&>pre]:my-2">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          code(props: any) {
+                            const { className, children, node, ...rest } = props;
+                            const match = /language-(\w+)/.exec(className || '');
+                            const language = match ? match[1] : '';
+                            const codeValue = String(children).replace(/\n$/, '');
+                            
+                            if (match) {
+                              return <CodeBlock code={codeValue} language={language} />;
+                            }
+                            
+                            return (
+                              <code className="bg-white/10 text-brand-indigo px-1.5 py-0.5 rounded font-mono text-[10px]" {...rest}>
+                                {children}
+                              </code>
+                            );
+                          }
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
                   ) : (
-                    <p className="whitespace-pre-line">{msg.content}</p>
+                    <p className="whitespace-pre-line font-medium text-white">{msg.content}</p>
                   )}
                 </div>
               </div>

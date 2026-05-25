@@ -13,6 +13,7 @@ export interface Session {
   repoLanguage: string;
   repoStars: number;
   architecture: string;
+  chatHistory?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 interface SessionSidebarProps {

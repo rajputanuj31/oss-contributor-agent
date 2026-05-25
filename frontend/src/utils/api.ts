@@ -33,6 +33,7 @@ export interface SessionResponse {
   repo_language?: string;
   repo_stars?: number;
   architecture?: string;
+  chat_history?: { role: string; content: string }[];
 }
 
 export interface HealthResponse {

@@ -10,10 +10,17 @@ from models import (
     QuestionRequest, QuestionResponse,
     SessionResponse,
 )
+from utils.session_db import init_db, save_session, get_session, get_sessions_count
 
 load_dotenv()
 
+
 app = FastAPI(title="OSS Onboarding Agent", version="2.0.0")
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,9 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── In-memory session store ───────────────────────────────────────────────────
-# Key: session_id (str)  →  Value: fully populated RepoState dict
-sessions: dict[str, RepoState] = {}
+# Session storage is handled persistently via SQLite database file (.cache/sessions.db)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -68,7 +73,7 @@ async def ingest_endpoint(req: IngestRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    sessions[req.session_id] = final_state
+    save_session(req.session_id, final_state)
 
     return IngestResponse(
         status="ready",
@@ -88,13 +93,12 @@ async def ask_endpoint(req: QuestionRequest):
     Answer a question about the ingested repository.
     Session must exist (call /ingest first).
     """
-    if req.session_id not in sessions:
+    state = get_session(req.session_id)
+    if not state:
         raise HTTPException(
             status_code=404,
             detail="Session not found. Call /ingest first.",
         )
-
-    state = dict(sessions[req.session_id])   # shallow copy — avoid mutating stored state
     state["current_question"] = req.question
 
     try:
@@ -107,7 +111,7 @@ async def ask_endpoint(req: QuestionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    sessions[req.session_id] = updated_state
+    save_session(req.session_id, updated_state)
 
     return QuestionResponse(
         answer=updated_state["current_answer"],
@@ -118,9 +122,9 @@ async def ask_endpoint(req: QuestionRequest):
 @app.get("/session/{session_id}", response_model=SessionResponse)
 async def session_endpoint(session_id: str):
     """Check whether a session exists and what repo it has loaded."""
-    if session_id not in sessions:
+    state = get_session(session_id)
+    if not state:
         return SessionResponse(exists=False)
-    state = sessions[session_id]
     return SessionResponse(
         exists=True,
         repo_name=state["repo_name"],
@@ -128,15 +132,16 @@ async def session_endpoint(session_id: str):
         repo_language=state["repo_language"],
         repo_stars=state["repo_stars"],
         architecture=state["architecture_notes"],
+        chat_history=state.get("chat_history", []),
     )
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "sessions": len(sessions)}
+    return {"status": "ok", "sessions": get_sessions_count()}
 
 
-# ── Dev entrypoint ────────────────────────────────────────────────────────────
+# ── Dev entrypoint (triggered reload V2) ───────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

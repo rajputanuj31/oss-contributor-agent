@@ -46,16 +46,16 @@ Directory Structure:
 File Contents:
 {file_contents}
 
-Describe:
+Provide:
 1. Overall architectural pattern (MVC, library, CLI tool, microservice, etc.)
-2. Main entry points
+2. Main entry points and module layout
 3. How the key modules/packages relate to each other
-4. Data flow if applicable (e.g. request → router → handler → response)
+4. A visual architecture diagram represented as a Mermaid flowchart, wrapped strictly inside a single ```mermaid code block.
 
 Rules:
-- 200 words max
-- Use bullet points
-- Only mention files/modules that are actually present above
+- Keep the textual description under 250 words total, utilizing clean bullet points
+- Ensure the Mermaid diagram is valid, use `graph TD` or `graph LR` layouts, and enclose any node labels in double quotes (e.g. A["File Name"]) to prevent rendering failures
+- Only reference files/modules that are actually present above
 """
 
 # ── Answer node ───────────────────────────────────────────────────────────────

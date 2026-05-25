@@ -52,3 +52,4 @@ class SessionResponse(BaseModel):
     repo_language: str = ""
     repo_stars: int = 0
     architecture: str = ""
+    chat_history: list[dict] = Field(default_factory=list)

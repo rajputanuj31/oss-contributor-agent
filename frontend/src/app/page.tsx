@@ -76,24 +76,23 @@ export default function Home() {
         });
         saveSessions(updatedSessions);
       } else {
-        // Sync local storage if language/stars/architecture are missing
-        if (
-          response.repo_language &&
-          (!sessionObj.repoLanguage || !sessionObj.repoStars || !sessionObj.architecture)
-        ) {
-          const updatedSessions = currentSessionsList.map((s) => {
-            if (s.id === id) {
-              return {
-                ...s,
-                repoLanguage: response.repo_language || '',
-                repoStars: response.repo_stars || 0,
-                architecture: response.architecture || '',
-              };
-            }
-            return s;
-          });
-          saveSessions(updatedSessions);
-        }
+        // Sync local storage to keep state fresh with backend ground truth
+        const updatedSessions = currentSessionsList.map((s) => {
+          if (s.id === id) {
+            return {
+              ...s,
+              repoLanguage: response.repo_language || s.repoLanguage,
+              repoStars: response.repo_stars || s.repoStars,
+              architecture: response.architecture || s.architecture,
+              chatHistory: response.chat_history?.map((msg) => ({
+                role: msg.role as 'user' | 'assistant',
+                content: msg.content,
+              })) || s.chatHistory || [],
+            };
+          }
+          return s;
+        });
+        saveSessions(updatedSessions);
       }
     } catch (err) {
       console.error('Error verifying/restoring session in backend', err);
@@ -149,6 +148,16 @@ export default function Home() {
     if (isClient) {
       localStorage.setItem('oss_active_session_id', newSession.id);
     }
+  };
+
+  const handleChatHistoryChange = (sessionId: string, history: any[]) => {
+    const updated = sessions.map((s) => {
+      if (s.id === sessionId) {
+        return { ...s, chatHistory: history };
+      }
+      return s;
+    });
+    saveSessions(updated);
   };
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
@@ -266,7 +275,8 @@ export default function Home() {
                 <RepoSummary session={activeSession} />
                 <ChatWorkspace
                   sessionId={activeSession.id}
-                  initialHistory={[]}
+                  initialHistory={activeSession.chatHistory || []}
+                  onChatHistoryChange={(history) => handleChatHistoryChange(activeSession.id, history)}
                 />
               </div>
 
@@ -277,7 +287,8 @@ export default function Home() {
                 ) : (
                   <ChatWorkspace
                     sessionId={activeSession.id}
-                    initialHistory={[]}
+                    initialHistory={activeSession.chatHistory || []}
+                    onChatHistoryChange={(history) => handleChatHistoryChange(activeSession.id, history)}
                   />
                 )}
               </div>
