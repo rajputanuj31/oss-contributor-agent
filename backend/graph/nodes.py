@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from langchain_openai import ChatOpenAI
 # pyrefly: ignore [missing-import]
 from graph.state import RepoState
-from onboard_github import fetch_repo_details
+from onboard_github import fetch_repo_details, parse_github_repo_url
 from prompts import SUMMARIZE_REPO_PROMPT, ARCHITECTURE_PROMPT, ANSWER_QUESTION_PROMPT
 
 
@@ -40,7 +40,8 @@ async def ingest_repo(state: RepoState) -> dict:
     """Fetch all repository data from GitHub and populate state."""
     print(f"\n[INGEST] Fetching {state['repo_url']} ...")
 
-    details = await fetch_repo_details(state["repo_url"].strip().rstrip("/"))
+    repo_path = parse_github_repo_url(state["repo_url"])
+    details = await fetch_repo_details(repo_path)
 
     print(f"[INGEST] {details.repo} — {details.repo_stars}★  {details.repo_language}")
     print(f"[INGEST] Files: {list(details.files.keys())}")

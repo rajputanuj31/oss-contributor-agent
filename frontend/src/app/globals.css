@@ -64,19 +64,24 @@ body {
 }
 
 /* Typing / Pulse loading animations */
+.glow-permanent {
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.35) !important;
+}
+
 @keyframes pulseGlow {
   0%, 100% {
-    opacity: 0.5;
-    box-shadow: 0 0 15px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.2);
   }
   50% {
-    opacity: 1;
-    box-shadow: 0 0 30px rgba(99, 102, 241, 0.35);
+    box-shadow: 0 0 35px rgba(99, 102, 241, 0.45);
+    border-color: rgba(99, 102, 241, 0.5);
   }
 }
 
 .animate-pulse-glow {
-  animation: pulseGlow 2s infinite ease-in-out;
+  animation: pulseGlow 2.5s infinite ease-in-out;
 }
 
 @keyframes typingDots {

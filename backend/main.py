@@ -76,6 +76,9 @@ async def ingest_endpoint(req: IngestRequest):
         repo_description=final_state["repo_description"],
         summary=final_state["repo_summary"],
         files_fetched=list(final_state["fetched_files"].keys()),
+        repo_language=final_state["repo_language"],
+        repo_stars=final_state["repo_stars"],
+        architecture=final_state["architecture_notes"],
     )
 
 
@@ -122,6 +125,9 @@ async def session_endpoint(session_id: str):
         exists=True,
         repo_name=state["repo_name"],
         files_fetched=list(state["fetched_files"].keys()),
+        repo_language=state["repo_language"],
+        repo_stars=state["repo_stars"],
+        architecture=state["architecture_notes"],
     )
 
 

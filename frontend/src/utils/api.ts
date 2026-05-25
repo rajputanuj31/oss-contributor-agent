@@ -11,6 +11,9 @@ export interface IngestResponse {
   repo_description: string;
   summary: string;
   files_fetched: string[];
+  repo_language: string;
+  repo_stars: number;
+  architecture: string;
 }
 
 export interface QuestionRequest {
@@ -27,6 +30,9 @@ export interface SessionResponse {
   exists: boolean;
   repo_name?: string;
   files_fetched?: string[];
+  repo_language?: string;
+  repo_stars?: number;
+  architecture?: string;
 }
 
 export interface HealthResponse {

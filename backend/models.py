@@ -30,6 +30,9 @@ class IngestResponse(BaseModel):
     repo_description: str
     summary: str
     files_fetched: list[str]
+    repo_language: str
+    repo_stars: int
+    architecture: str
 
 
 class QuestionRequest(BaseModel):
@@ -46,3 +49,6 @@ class SessionResponse(BaseModel):
     exists: bool
     repo_name: str = ""
     files_fetched: list[str] = Field(default_factory=list)
+    repo_language: str = ""
+    repo_stars: int = 0
+    architecture: str = ""
