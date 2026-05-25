@@ -1,4 +1,4 @@
-# OSS Onboarding & Contributor Agent 🚀
+# OnboardFlow
 
 An intelligent agentic workspace built to onboard developers to new open-source codebases instantly. It recursively ingests any GitHub repository, creates visual architecture flowcharts, indexes key configurations, and answers contributor questions via a local SQLite RAG vector store.
 
