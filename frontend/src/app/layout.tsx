@@ -13,8 +13,34 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OSS Contributor Agent — Ingestion & Q&A Hub",
-  description: "Understand any GitHub codebase instantly with LLM-powered summarization, architecture parsing, and interactive Q&A.",
+  title: "OnboardFlow — AI-Powered Codebase Onboarding Agent",
+  description: "Understand any GitHub codebase instantly. Generates visual architecture flowcharts via Mermaid.js and answers contributor questions using a local SQLite RAG search with content-hash caching.",
+  keywords: [
+    "OnboardFlow",
+    "AI Codebase Onboarding",
+    "GitHub Agent",
+    "RAG",
+    "LangGraph",
+    "LangChain",
+    "Mermaid.js flowcharts",
+    "SQLite vector search",
+    "developer tools"
+  ],
+  authors: [{ name: "Anuj Rajput", url: "https://github.com/rajputanuj31" }],
+  openGraph: {
+    title: "OnboardFlow — AI-Powered Codebase Onboarding Agent",
+    description: "Recursively ingests GitHub repositories, builds system architecture maps, and streams developer onboarding Q&A.",
+    url: "https://github.com/rajputanuj31/OnboardFlow",
+    siteName: "OnboardFlow",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OnboardFlow — AI-Powered Codebase Onboarding Agent",
+    description: "Understand any GitHub codebase instantly with interactive diagrams and agentic Q&A.",
+    creator: "@_rajputanuj",
+  },
 };
 
 export default function RootLayout({

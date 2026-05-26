@@ -42,9 +42,9 @@ export default function SessionSidebar({
             <FolderGit className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="font-semibold text-zinc-100 text-sm tracking-wide">OSS Contributor</h1>
+            <h1 className="font-semibold text-zinc-100 text-sm tracking-wide">OnboardFlow</h1>
             <span className="text-[10px] text-zinc-500 font-mono flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-500" /> LangGraph Agent V2
+              <ShieldCheck className="w-3 h-3 text-emerald-500" /> LangGraph Agent
             </span>
           </div>
         </div>
@@ -87,11 +87,10 @@ export default function SessionSidebar({
             return (
               <div
                 key={session.id}
-                className={`group relative flex items-center justify-between w-full px-3 py-3 rounded-xl transition-all duration-300 cursor-pointer ${
-                  isActive
+                className={`group relative flex items-center justify-between w-full px-3 py-3 rounded-xl transition-all duration-300 cursor-pointer ${isActive
                     ? 'bg-white/5 text-zinc-100 shadow-inner border-l-2 border-brand-indigo'
                     : 'text-zinc-400 hover:bg-white/[0.02] hover:text-zinc-200'
-                }`}
+                  }`}
                 onClick={() => onSelectSession(session.id)}
               >
                 <div className="flex items-center gap-3 overflow-hidden pr-6">

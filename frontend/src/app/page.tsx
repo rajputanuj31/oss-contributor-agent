@@ -210,7 +210,7 @@ export default function Home() {
           </button>
           
           <div className="font-semibold text-xs tracking-wider uppercase text-zinc-300 font-mono">
-            {activeSession ? activeSession.id : 'OSS Agent'}
+            {activeSession ? activeSession.id : 'OnboardFlow'}
           </div>
 
           <button

@@ -23,6 +23,7 @@ export default function IngestPanel({ onIngestSuccess, existingSessionIds }: Ing
   const [sessionId, setSessionId] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [isFastForwarding, setIsFastForwarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Auto-generate session ID from repository URL
@@ -51,7 +52,7 @@ export default function IngestPanel({ onIngestSuccess, existingSessionIds }: Ing
   // Stepper effect during loading
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (loading) {
+    if (loading && !isFastForwarding) {
       timer = setInterval(() => {
         setCurrentStep((prev) => {
           if (prev < STEPS.length - 1) {
@@ -60,11 +61,12 @@ export default function IngestPanel({ onIngestSuccess, existingSessionIds }: Ing
           return prev;
         });
       }, 7000);
-    } else {
+    } else if (!loading) {
       setCurrentStep(0);
+      setIsFastForwarding(false);
     }
     return () => clearInterval(timer);
-  }, [loading]);
+  }, [loading, isFastForwarding]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +91,9 @@ export default function IngestPanel({ onIngestSuccess, existingSessionIds }: Ing
     }
 
     setLoading(true);
+    setCurrentStep(0);
+    setIsFastForwarding(false);
+
     try {
       const response = await api.ingest({
         repo_url: repoUrl.trim(),
@@ -107,10 +112,27 @@ export default function IngestPanel({ onIngestSuccess, existingSessionIds }: Ing
         architecture: response.architecture,
       };
 
-      onIngestSuccess(newSession);
+      // Fast-forward remaining steps for UX satisfaction
+      setIsFastForwarding(true);
+      
+      let nextStep = currentStep;
+      const ffInterval = setInterval(() => {
+        nextStep += 1;
+        setCurrentStep(nextStep);
+        
+        if (nextStep >= STEPS.length) {
+          clearInterval(ffInterval);
+          // Wait 800ms on the fully completed screen for satisfying feedback
+          setTimeout(() => {
+            setLoading(false);
+            setIsFastForwarding(false);
+            onIngestSuccess(newSession);
+          }, 800);
+        }
+      }, 400);
+
     } catch (err: any) {
       setError(err.message || 'An error occurred during ingestion. Please check the backend log.');
-    } finally {
       setLoading(false);
     }
   };

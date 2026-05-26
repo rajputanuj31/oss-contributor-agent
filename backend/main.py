@@ -17,7 +17,7 @@ from utils.session_db import init_db, save_session, get_session, get_sessions_co
 load_dotenv()
 
 
-app = FastAPI(title="OSS Onboarding Agent", version="2.0.0")
+app = FastAPI(title="OnboardFlow", version="2.0.0")
 
 
 @app.on_event("startup")
