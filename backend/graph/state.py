@@ -1,7 +1,7 @@
 from typing import TypedDict
 
-
 class RepoState(TypedDict):
+    session_id: str
     repo_url: str
 
     # ── Fetched from GitHub (filled by ingest node) ──────────────────────────

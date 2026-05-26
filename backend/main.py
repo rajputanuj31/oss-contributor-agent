@@ -1,5 +1,7 @@
 import asyncio
+import json
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
@@ -42,6 +44,7 @@ async def ingest_endpoint(req: IngestRequest):
     Call this once per repo. Re-calling with the same session_id overwrites it.
     """
     initial_state: RepoState = {
+        "session_id": req.session_id,
         "repo_url": req.repo_url,
         # Fetch fields (filled by ingest node)
         "repo_name": "",
@@ -87,11 +90,10 @@ async def ingest_endpoint(req: IngestRequest):
     )
 
 
-@app.post("/ask", response_model=QuestionResponse)
+@app.post("/ask")
 async def ask_endpoint(req: QuestionRequest):
     """
-    Answer a question about the ingested repository.
-    Session must exist (call /ingest first).
+    Answer a question about the ingested repository and stream response SSE.
     """
     state = get_session(req.session_id)
     if not state:
@@ -101,22 +103,44 @@ async def ask_endpoint(req: QuestionRequest):
         )
     state["current_question"] = req.question
 
-    try:
-        updated_state = await asyncio.wait_for(
-            qa_graph.ainvoke(state),
-            timeout=30.0,
-        )
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="Answer timed out. Please try again.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    async def event_generator():
+        final_answer_chunks = []
+        try:
+            async for event in qa_graph.astream_events(state, version="v2"):
+                kind = event.get("event")
+                name = event.get("name")
+                
+                # 1. Output LLM Tokens
+                if kind == "on_chat_model_stream":
+                    chunk = event["data"].get("chunk")
+                    if chunk and chunk.content:
+                        final_answer_chunks.append(chunk.content)
+                        yield f"data: {json.dumps({'event': 'token', 'text': chunk.content})}\n\n"
+                
+                # 2. Output Tool Executions
+                elif kind == "on_tool_start" and name == "read_codebase_file":
+                    filepath = event["data"].get("input", {}).get("filepath", "")
+                    yield f"data: {json.dumps({'event': 'status', 'text': f'Reading file: {filepath}'})}\n\n"
+                    
+                elif kind == "on_tool_end" and name == "read_codebase_file":
+                    yield f"data: {json.dumps({'event': 'status', 'text': ''})}\n\n"
+                    
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'text': str(e)})}\n\n"
+            return
 
-    save_session(req.session_id, updated_state)
+        final_answer = "".join(final_answer_chunks)
+        updated_history = list(state.get("chat_history", [])) + [
+            {"role": "user", "content": req.question},
+            {"role": "assistant", "content": final_answer},
+        ]
+        
+        updated_state = {**state, "current_answer": final_answer, "chat_history": updated_history}
+        save_session(req.session_id, updated_state)
+        
+        yield f"data: {json.dumps({'event': 'done', 'chat_history': updated_history})}\n\n"
 
-    return QuestionResponse(
-        answer=updated_state["current_answer"],
-        chat_history=updated_state["chat_history"],
-    )
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.get("/session/{session_id}", response_model=SessionResponse)

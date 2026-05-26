@@ -18,6 +18,11 @@ def init_db():
             )
         """)
         conn.commit()
+    try:
+        from utils.vector_db import init_vector_db
+        init_vector_db()
+    except ImportError:
+        pass
 
 def save_session(session_id: str, state: dict) -> None:
     """Serialize the session state to JSON and write to SQLite."""
@@ -45,6 +50,7 @@ def delete_session(session_id: str) -> None:
     """Delete a session from SQLite."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+        conn.execute("DELETE FROM code_chunks WHERE session_id = ?", (session_id,))
         conn.commit()
 
 def get_sessions_count() -> int:

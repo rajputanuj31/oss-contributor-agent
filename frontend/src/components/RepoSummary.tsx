@@ -16,6 +16,18 @@ interface RepoSummaryProps {
 export default function RepoSummary({ session }: RepoSummaryProps) {
   const [activeTab, setActiveTab] = useState<'summary' | 'architecture'>('summary');
 
+  const preprocessMarkdown = (text: string) => {
+    if (!text) return '';
+    return text.split('\n').map(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+      if (trimmed.startsWith('#') || trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.match(/^\d+\./) || trimmed.startsWith('```')) {
+        return line;
+      }
+      return line + '  ';
+    }).join('\n');
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-zinc-900/50 p-6 overflow-hidden">
       {/* Header Metadata card */}
@@ -118,7 +130,7 @@ export default function RepoSummary({ session }: RepoSummaryProps) {
                   }
                 }}
               >
-                {session.summary}
+                {preprocessMarkdown(session.summary)}
               </ReactMarkdown>
             ) : (
               <ReactMarkdown
@@ -155,7 +167,7 @@ export default function RepoSummary({ session }: RepoSummaryProps) {
                   }
                 }}
               >
-                {session.architecture || 'No architecture notes generated.'}
+                {preprocessMarkdown(session.architecture || 'No architecture notes generated.')}
               </ReactMarkdown>
             )}
           </div>

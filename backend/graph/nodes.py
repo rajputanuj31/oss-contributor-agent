@@ -18,7 +18,7 @@ from prompts import SUMMARIZE_REPO_PROMPT, ARCHITECTURE_PROMPT, ANSWER_QUESTION_
 @lru_cache(maxsize=1)
 def _llm() -> ChatOpenAI:
     """Lazy-initialize the LLM so load_dotenv() in main.py runs first."""
-    return ChatOpenAI(model="gpt-4o-mini", max_tokens=1024, temperature=0.0)
+    return ChatOpenAI(model="gpt-4o-mini", max_tokens=1024, temperature=0.0, streaming=True)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -47,6 +47,16 @@ async def ingest_repo(state: RepoState) -> dict:
 
     print(f"[INGEST] {details.repo} — {details.repo_stars}★  {details.repo_language}")
     print(f"[INGEST] Files: {list(details.files.keys())}")
+
+    from utils.vector_db import save_repo_chunks
+    print(f"[INGEST] Chunking & embedding codebase files into SQLite vector DB...")
+    await save_repo_chunks(
+        session_id=state["session_id"],
+        files=details.files,
+        readme=details.readme,
+        contributing=details.contributing
+    )
+    print(f"[INGEST] Embeddings stored successfully.")
 
     return {
         "repo_name": details.repo,
@@ -126,8 +136,17 @@ async def answer_question(state: RepoState) -> dict:
 
     structure_str = "\n".join(state["repo_structure"])
 
-    # 2. Build the System Prompt
-    system_text = f"""You are an expert on the "{state['repo_name']}" GitHub repository.
+    # 2. Retrieve relevant chunks from SQLite Vector DB
+    from utils.vector_db import query_vector_db
+    print(f"[ANSWER] Querying SQLite Vector DB for RAG chunks...")
+    chunks = await query_vector_db(state["session_id"], state["current_question"], top_k=4)
+    rag_snippets = []
+    for chunk in chunks:
+        rag_snippets.append(f"=== {chunk['filepath']} (Chunk similarity: {chunk['similarity']:.4f}) ===\n{chunk['content']}")
+    rag_context = "\n\n".join(rag_snippets) if rag_snippets else "(No highly relevant chunks found.)"
+
+    # 3. Build the prompts for optimal prompt caching
+    static_system_text = f"""You are an expert on the "{state['repo_name']}" GitHub repository.
 
 Here is everything you know about it:
 
@@ -140,7 +159,7 @@ Here is everything you know about it:
 ## Repository Directory Layout
 {structure_str}
 
-## Key File Contents
+## Key File Contents (Static Priority Files)
 {file_contents}
 
 CRITICAL RULES:
@@ -148,13 +167,20 @@ CRITICAL RULES:
 2. Answer based strictly on the repository content and the files you fetch.
 3. DO NOT hallucinate, guess, or make up code snippets, routes, file names, or application logic.
 4. If the user's question asks about how a feature works (e.g., "how to upload a video", "what is the flow"), you MUST FIRST identify the relevant files from the 'Repository Directory Layout' and call the `read_codebase_file` tool to read them. DO NOT give a generic explanation of how such a feature typically works.
-5. You are strictly forbidden from writing example or placeholder code (like generic express, django, or react handlers) unless they are verbatim present in the 'Key File Contents'. If you cannot find the actual code, use the tool to fetch it.
+5. You are strictly forbidden from writing example or placeholder code (like generic express, django, or react handlers) unless they are verbatim present in the context. If you cannot find the actual code, use the tool to fetch it.
 6. If the files cannot be found or read, state clearly that you cannot find the implementation.
 """
 
-    # 3. Create the messages list
+    dynamic_system_text = f"""## Relevant Code Snippets (Semantic Search RAG)
+Here are relevant snippets from the codebase that might contain the answer or point to the correct files:
+
+{rag_context}
+"""
+
+    # 4. Create the messages list
     messages = []
-    messages.append(SystemMessage(content=system_text))
+    messages.append(SystemMessage(content=static_system_text))
+    messages.append(SystemMessage(content=dynamic_system_text))
 
     # Add chat history (up to last 6 messages)
     for msg in state.get("chat_history", [])[-6:]:
@@ -175,6 +201,25 @@ CRITICAL RULES:
         Read the contents of a specific file in the repository codebase.
         filepath should be the relative path of the file from the repository root (e.g. 'src/utils/api.ts').
         """
+        # Fallback 1: check if in state's fetched_files
+        if filepath in state.get("fetched_files", {}):
+            return state["fetched_files"][filepath]
+
+        # Fallback 2: check if in SQLite local chunks cache
+        try:
+            import sqlite3
+            from utils.vector_db import DB_PATH
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.execute(
+                    "SELECT content FROM code_chunks WHERE session_id = ? AND filepath = ? ORDER BY chunk_index",
+                    (state["session_id"], filepath)
+                )
+                rows = cursor.fetchall()
+                if rows:
+                    return "".join(row[0] for row in rows)
+        except Exception:
+            pass
+
         content = await fetch_specific_file(repo_name, filepath)
         if content:
             return content
@@ -210,6 +255,11 @@ CRITICAL RULES:
                 messages.append(ToolMessage(content=str(tool_output), tool_call_id=tool_id))
             else:
                 messages.append(ToolMessage(content=f"Error: Unknown tool '{tool_name}'", tool_call_id=tool_id))
+
+    # If the last response was a tool call, run the LLM one final time to synthesize the answer
+    if response.tool_calls:
+        print("[REACT] Final invocation to synthesize answer...")
+        response = await llm_with_tools.ainvoke(messages)
 
     # The final response content is stored in response.content
     final_answer = response.content

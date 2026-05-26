@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { api } from '../utils/api';
+import { api, API_BASE_URL } from '../utils/api';
 import { MessageSquare, Send, Sparkles, AlertCircle, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -67,6 +67,8 @@ export default function ChatWorkspace({ sessionId, initialHistory, onChatHistory
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [streamText, setStreamText] = useState('');
+  const [statusText, setStatusText] = useState('');
   
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -74,12 +76,14 @@ export default function ChatWorkspace({ sessionId, initialHistory, onChatHistory
   useEffect(() => {
     setMessages(initialHistory);
     setError(null);
+    setStreamText('');
+    setStatusText('');
   }, [sessionId, initialHistory]);
 
-  // Scroll to bottom on new message
+  // Scroll to bottom on new message or streaming updates
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, loading, streamText, statusText]);
 
   const handleSendMessage = async (textToSend: string) => {
     if (!textToSend.trim() || loading) return;
@@ -91,24 +95,81 @@ export default function ChatWorkspace({ sessionId, initialHistory, onChatHistory
     onChatHistoryChange?.(updatedUserMessages);
     setInput('');
     setLoading(true);
+    setStreamText('');
+    setStatusText('');
 
     try {
-      const response = await api.ask({
-        session_id: sessionId,
-        question: textToSend.trim(),
+      const response = await fetch(`${API_BASE_URL}/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          question: textToSend.trim(),
+        }),
       });
 
-      // Update state with complete list from server (ground truth)
-      const formattedHistory = response.chat_history.map((msg) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      }));
-      setMessages(formattedHistory);
-      onChatHistoryChange?.(formattedHistory);
+      if (!response.ok) {
+        let errText = 'Server error';
+        try {
+          const errData = await response.json();
+          if (errData && errData.detail) errText = errData.detail;
+        } catch {}
+        throw new Error(errText);
+      }
+
+      if (!response.body) {
+        throw new Error('Readable stream not supported.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        
+        // Retain last unfinished line
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const cleaned = line.trim();
+          if (!cleaned.startsWith('data: ')) continue;
+          const jsonStr = cleaned.slice(6);
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.event === 'token') {
+              setStreamText((prev) => prev + parsed.text);
+            } else if (parsed.event === 'status') {
+              setStatusText(parsed.text || '');
+            } else if (parsed.event === 'error') {
+              throw new Error(parsed.text);
+            } else if (parsed.event === 'done') {
+              const formattedHistory = parsed.chat_history.map((msg: any) => ({
+                role: msg.role as 'user' | 'assistant',
+                content: msg.content,
+              }));
+              setMessages(formattedHistory);
+              onChatHistoryChange?.(formattedHistory);
+              setStreamText('');
+              setStatusText('');
+            }
+          } catch (e) {
+            console.error('Error parsing stream event:', e);
+          }
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Error fetching response from agent.');
     } finally {
       setLoading(false);
+      setStreamText('');
+      setStatusText('');
     }
   };
 
@@ -195,13 +256,59 @@ export default function ChatWorkspace({ sessionId, initialHistory, onChatHistory
           })
         )}
 
-        {/* Loading Indicator */}
-        {loading && (
+        {/* Currently Streaming Message */}
+        {loading && streamText && (
+          <div className="flex w-full justify-start">
+            <div className="max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed bg-white/5 border border-white/5 text-zinc-300 rounded-tl-none">
+              <div className="prose prose-invert max-w-none text-xs text-zinc-300 [&>p]:mb-2 [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>h1]:text-sm [&>h1]:font-bold [&>h2]:text-xs [&>h2]:font-bold [&>h3]:text-xs [&>h3]:font-bold [&>h4]:text-xs [&>h4]:font-bold [&>pre]:my-2">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    code(props: any) {
+                      const { className, children, node, ...rest } = props;
+                      const match = /language-(\w+)/.exec(className || '');
+                      const language = match ? match[1] : '';
+                      const codeValue = String(children).replace(/\n$/, '');
+                      
+                      if (match) {
+                        return <CodeBlock code={codeValue} language={language} />;
+                      }
+                      
+                      return (
+                        <code className="bg-white/10 text-brand-indigo px-1.5 py-0.5 rounded font-mono text-[10px]" {...rest}>
+                          {children}
+                        </code>
+                      );
+                    }
+                  }}
+                >
+                  {streamText}
+                </ReactMarkdown>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Live status banner */}
+        {loading && statusText && (
+          <div className="flex justify-start">
+            <div className="bg-brand-indigo/[0.03] border border-brand-indigo/15 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%] flex items-center gap-2 text-[10px] font-mono text-brand-indigo/80">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-indigo opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-indigo"></span>
+              </span>
+              {statusText}
+            </div>
+          </div>
+        )}
+
+        {/* Fallback dotted loader */}
+        {loading && !streamText && !statusText && (
           <div className="flex justify-start">
             <div className="bg-white/5 border border-white/5 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%] flex items-center gap-1">
-              <span className="dot-anim w-1.5 h-1.5 bg-zinc-400 rounded-full"></span>
-              <span className="dot-anim w-1.5 h-1.5 bg-zinc-400 rounded-full"></span>
-              <span className="dot-anim w-1.5 h-1.5 bg-zinc-400 rounded-full"></span>
+              <span className="dot-anim w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce"></span>
+              <span className="dot-anim w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+              <span className="dot-anim w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
             </div>
           </div>
         )}
