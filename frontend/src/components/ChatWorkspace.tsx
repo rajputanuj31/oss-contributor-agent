@@ -113,6 +113,7 @@ export default function ChatWorkspace({ sessionId, initialHistory, onChatHistory
         body: JSON.stringify({
           session_id: sessionId,
           question: textToSend.trim(),
+          chat_history: messages.map(msg => ({ role: msg.role, content: msg.content })),
         }),
       });
 

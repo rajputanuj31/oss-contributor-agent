@@ -46,12 +46,6 @@ def get_session(session_id: str) -> dict | None:
                 return None
     return None
 
-def delete_session(session_id: str) -> None:
-    """Delete a session from SQLite."""
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
-        conn.execute("DELETE FROM code_chunks WHERE session_id = ?", (session_id,))
-        conn.commit()
 
 def get_sessions_count() -> int:
     """Get the total count of active sessions stored in SQLite."""

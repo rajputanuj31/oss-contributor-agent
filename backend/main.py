@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,9 +26,18 @@ app = FastAPI(title="OnboardFlow", version="2.0.0")
 def on_startup():
     init_db()
 
+frontend_url = os.getenv("FRONTEND_URL")
+allowed_origins = ["http://localhost:3000"]
+if frontend_url:
+    # Support multiple origins if needed by splitting on comma, or just append
+    if "," in frontend_url:
+        allowed_origins.extend([o.strip() for o in frontend_url.split(",") if o.strip()])
+    else:
+        allowed_origins.append(frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -120,6 +130,8 @@ async def ask_endpoint(req: QuestionRequest, x_model_api_key: str | None = Heade
     
     state["current_question"] = req.question
     state["model_api_key"] = api_key
+    if req.chat_history is not None:
+        state["chat_history"] = req.chat_history
 
     async def event_generator():
         final_answer_chunks = []
@@ -152,9 +164,6 @@ async def ask_endpoint(req: QuestionRequest, x_model_api_key: str | None = Heade
             {"role": "user", "content": req.question},
             {"role": "assistant", "content": final_answer},
         ]
-        
-        updated_state = {**state, "current_answer": final_answer, "chat_history": updated_history}
-        save_session(req.session_id, updated_state)
         
         yield f"data: {json.dumps({'event': 'done', 'chat_history': updated_history})}\n\n"
 

@@ -38,6 +38,7 @@ class IngestResponse(BaseModel):
 class QuestionRequest(BaseModel):
     session_id: str
     question: str
+    chat_history: list[dict] | None = None
 
 
 class QuestionResponse(BaseModel):

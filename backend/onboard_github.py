@@ -206,6 +206,7 @@ async def fetch_repo_details(repo: str) -> RepoDetails:
         # Step 5: Gather priority paths
         priority_paths = []
         priority_basenames = {f.lower() for f in PRIORITY_FILES}
+        deprioritized_dirs = {"tests", "test", "docs", "docs_src", "examples", "example", "website"}
         for item in tree_items:
             if item.get("type") != "blob":
                 continue
@@ -214,7 +215,10 @@ async def fetch_repo_details(repo: str) -> RepoDetails:
                 continue
             basename = path.split("/")[-1].lower()
             if basename in priority_basenames:
-                priority_paths.append(path)
+                # Do not treat examples, tests, or documentation files as priority entry points
+                path_segments = {s.lower() for s in path.split("/")}
+                if not path_segments.intersection(deprioritized_dirs):
+                    priority_paths.append(path)
                 
         # Sort priority files by weight and depth
         priority_paths = sorted(priority_paths, key=get_priority_weight)

@@ -96,10 +96,7 @@ export default function Home() {
               repoLanguage: response.repo_language || s.repoLanguage,
               repoStars: response.repo_stars || s.repoStars,
               architecture: response.architecture || s.architecture,
-              chatHistory: response.chat_history?.map((msg) => ({
-                role: msg.role as 'user' | 'assistant',
-                content: msg.content,
-              })) || s.chatHistory || [],
+              chatHistory: s.chatHistory || [],
             };
           }
           return s;
